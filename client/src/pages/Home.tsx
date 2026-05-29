@@ -132,7 +132,7 @@ export default function Home() {
           <li><a href="#memberships">Memberships</a></li>
           <li><a href="#events">Events</a></li>
           <li><a href="#testimonials">Reviews</a></li>
-          <li><Link href="/partnerships" style={{ fontSize: ".8rem", fontWeight: 500, letterSpacing: ".09em", textTransform: "uppercase", color: "rgba(237,234,224,.55)", transition: "color 0.38s" }}>Partners</Link></li>
+
         </ul>
         <div style={{ display: "flex", alignItems: "center", gap: ".9rem" }}>
           <button className="btn-signin-nav" onClick={() => setLoginOpen(true)}>
@@ -428,7 +428,7 @@ export default function Home() {
         <div style={{ display: "flex", gap: "2rem", flexWrap: "wrap" }}>
           <a href="#menu" style={{ fontSize: ".78rem", color: "rgba(237,234,224,.55)", transition: "color 0.38s" }}>IV Menu</a>
           <a href="#memberships" style={{ fontSize: ".78rem", color: "rgba(237,234,224,.55)", transition: "color 0.38s" }}>Memberships</a>
-          <Link href="/partnerships" style={{ fontSize: ".78rem", color: "rgba(237,234,224,.55)", transition: "color 0.38s" }}>Partnerships</Link>
+
           <a href="tel:8185158980" style={{ fontSize: ".78rem", color: "rgba(237,234,224,.55)", transition: "color 0.38s" }}>(818) 515-8980</a>
           <Link href="/admin" style={{ fontSize: ".78rem", color: "rgba(201,168,76,.5)", transition: "color 0.38s" }}>Admin</Link>
         </div>
