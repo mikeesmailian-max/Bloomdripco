@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
+import { trpc } from "@/lib/trpc";
 
 // ── TYPES ──────────────────────────────────────────────────────────────────
 interface Client { id: number; first: string; last: string; email: string; phone: string; visits: number; points: number; type: string; joined: string; }
@@ -699,6 +700,7 @@ function PromosPage({ promos, setPromos, showToast }: { promos: Promo[]; setProm
 
 // ── CAMPAIGNS PAGE ────────────────────────────────────────────────────────────
 function CampaignsPage({ clients, campaigns, setCampaigns, showToast }: { clients: Client[]; campaigns: Campaign[]; setCampaigns: (c: Campaign[]) => void; showToast: (m: string, e?: boolean) => void }) {
+  const sendEmailMutation = trpc.email.sendEmail.useMutation();
   const [segment, setSegment] = useState("all");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [subject, setSubject] = useState("");
@@ -731,10 +733,7 @@ function CampaignsPage({ clients, campaigns, setCampaigns, showToast }: { client
 
   const sendCampaign = async () => {
     if (!selected.size) { showToast("Select at least one recipient", true); return; }
-    const apiKey = (document.getElementById("resendKey") as HTMLInputElement)?.value || localStorage.getItem("resend_key") || "";
-    if (!apiKey) { showToast("Add your Resend API key in Settings first", true); return; }
     if (!subject || !body) { showToast("Subject and body required", true); return; }
-    if (!fromEmail) { showToast("From email required", true); return; }
 
     setSending(true);
     setSendStatus(null);
@@ -745,17 +744,13 @@ function CampaignsPage({ clients, campaigns, setCampaigns, showToast }: { client
       const personalBody = body.replace(/{name}/g, r.first);
       const htmlBody = personalBody.replace(/\n/g, "<br>");
       try {
-        const res = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: { "Authorization": "Bearer " + apiKey, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            from: `${fromName} <${fromEmail}>`,
-            to: [r.email],
-            subject: subject.replace("{name}", r.first),
-            html: `<div style="font-family:sans-serif;max-width:600px;margin:auto;padding:32px;background:#fff;color:#333"><h2 style="color:#c9a84c;font-family:serif">${fromName}</h2><div style="margin:20px 0;line-height:1.7">${htmlBody}</div><hr style="border:none;border-top:1px solid #eee;margin:24px 0"/><p style="font-size:12px;color:#999">Bloom Drip Co. | You're receiving this because you're a valued client.</p></div>`,
-          }),
+        await sendEmailMutation.mutateAsync({
+          from: fromEmail ? `${fromName} <${fromEmail}>` : undefined,
+          to: r.email,
+          subject: subject.replace("{name}", r.first),
+          html: `<div style="font-family:sans-serif;max-width:600px;margin:auto;padding:32px;background:#fff;color:#333"><h2 style="color:#c9a84c;font-family:serif">${fromName}</h2><div style="margin:20px 0;line-height:1.7">${htmlBody}</div><hr style="border:none;border-top:1px solid #eee;margin:24px 0"/><p style="font-size:12px;color:#999">Bloom Drip Co. | You're receiving this because you're a valued client.</p></div>`,
         });
-        if (res.ok) sent++; else failed++;
+        sent++;
       } catch { failed++; }
     }
 
@@ -771,7 +766,7 @@ function CampaignsPage({ clients, campaigns, setCampaigns, showToast }: { client
 
     if (sent > 0 && failed === 0) setSendStatus({ msg: `✓ Campaign sent to ${sent} recipient${sent > 1 ? "s" : ""}!`, type: "success" });
     else if (sent > 0) setSendStatus({ msg: `Sent to ${sent}, failed: ${failed}. Check your Resend dashboard.`, type: "success" });
-    else setSendStatus({ msg: "Send failed. Check your Resend API key and 'From' email (must be verified in Resend).", type: "error" });
+    else setSendStatus({ msg: "Send failed. Check your Resend API key configuration.", type: "error" });
   };
 
   return (
@@ -1235,6 +1230,7 @@ const FLYER_TYPES = [
 ];
 
 function MarketingHubPage({ clients, showToast }: { clients: Client[]; showToast: (m: string, e?: boolean) => void }) {
+  const sendEmailMutation = trpc.email.sendEmail.useMutation();
   const [mTab, setMTab] = useState<MTab>("campaigns");
   const [selectedCampaign, setSelectedCampaign] = useState(SEASONAL_CAMPAIGNS[0]);
   const [campaignSending, setCampaignSending] = useState(false);
@@ -1243,8 +1239,6 @@ function MarketingHubPage({ clients, showToast }: { clients: Client[]; showToast
   const [reviewName, setReviewName] = useState("");
   const [reviewSending, setReviewSending] = useState(false);
   const [reviewSent, setReviewSent] = useState(false);
-
-  const apiKey = localStorage.getItem("resend_key") || "";
 
   const buildCampaignHtml = (campaign: typeof SEASONAL_CAMPAIGNS[0], clientName: string) => {
     const bodyText = campaign.body(clientName);
@@ -1255,22 +1249,16 @@ function MarketingHubPage({ clients, showToast }: { clients: Client[]; showToast
   const buildReviewHtml = (name: string) => `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head><body style="margin:0;padding:0;background:#020b14;font-family:'Helvetica Neue',Arial,sans-serif;"><table width="100%" cellpadding="0" cellspacing="0" style="background:#020b14;padding:40px 20px;"><tr><td align="center"><table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#0a1a2a;border-radius:16px;border:1px solid rgba(201,168,76,0.3);overflow:hidden;"><tr><td style="background:linear-gradient(135deg,#0a1a2a,#0d2035);padding:40px;border-bottom:1px solid rgba(201,168,76,0.3);text-align:center;"><div style="font-size:36px;margin-bottom:12px;">⭐</div><div style="font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:rgba(201,168,76,0.7);margin-bottom:10px;">Bloom Drip Co. · Los Angeles</div><h1 style="margin:0;font-family:Georgia,serif;font-size:24px;color:#edeae0;">How Was Your Experience?</h1></td></tr><tr><td style="padding:36px 40px;"><p style="font-size:15px;color:rgba(200,216,232,0.75);line-height:1.8;margin:0 0 18px;">Hi <strong style="color:#edeae0;">${name || 'there'}</strong>,</p><p style="font-size:14px;color:rgba(200,216,232,0.65);line-height:1.85;margin:0 0 18px;">Thank you so much for choosing Bloom Drip Co. for your IV therapy session. We hope you felt the difference!</p><p style="font-size:14px;color:rgba(200,216,232,0.65);line-height:1.85;margin:0 0 28px;">If you had a great experience, we'd be incredibly grateful if you could take 60 seconds to leave us a Google review. It helps other people in LA discover us — and it means the world to our small team.</p><table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;"><tr><td align="center"><a href="https://g.page/r/BLOOM_DRIP_CO_GOOGLE_REVIEW_LINK" style="display:inline-block;background:linear-gradient(135deg,#c9a84c,#8f7630);color:#010a12;font-weight:700;font-size:14px;letter-spacing:0.06em;text-transform:uppercase;padding:16px 40px;border-radius:50px;text-decoration:none;">⭐ Leave a Google Review</a></td></tr></table><p style="font-size:13px;color:rgba(200,216,232,0.4);line-height:1.7;margin:0;">It only takes 60 seconds and helps us more than you know. Thank you! 💛</p></td></tr><tr><td style="background:#071828;padding:24px 40px;border-top:1px solid rgba(201,168,76,0.15);text-align:center;"><div style="font-family:Georgia,serif;font-size:14px;color:rgba(201,168,76,0.6);margin-bottom:6px;">Bloom Drip Co.</div><div style="font-size:11px;color:rgba(200,216,232,0.3);">Luxury Mobile IV Infusion · Los Angeles, CA · (818) 515-8980</div></td></tr></table></td></tr></table></body></html>`;
 
   const sendCampaign = async () => {
-    if (!apiKey) { showToast("Add your Resend API key in Settings first", true); return; }
     const targets = clients.filter(c => c.email);
     if (!targets.length) { showToast("No clients with email addresses found", true); return; }
     setCampaignSending(true);
     let sent = 0;
     for (const c of targets) {
       try {
-        await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: { "Authorization": "Bearer " + apiKey, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            from: "Bloom Drip Co. <onboarding@resend.dev>",
-            to: [c.email],
-            subject: selectedCampaign.subject,
-            html: buildCampaignHtml(selectedCampaign, c.first),
-          }),
+        await sendEmailMutation.mutateAsync({
+          to: c.email,
+          subject: selectedCampaign.subject,
+          html: buildCampaignHtml(selectedCampaign, c.first),
         });
         sent++;
       } catch (_) {}
@@ -1280,25 +1268,19 @@ function MarketingHubPage({ clients, showToast }: { clients: Client[]; showToast
   };
 
   const sendReviewRequest = async () => {
-    if (!apiKey) { showToast("Add your Resend API key in Settings first", true); return; }
     if (!reviewEmail) { showToast("Enter a client email address", true); return; }
     setReviewSending(true);
     try {
-      await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: { "Authorization": "Bearer " + apiKey, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          from: "Bloom Drip Co. <onboarding@resend.dev>",
-          to: [reviewEmail],
-          subject: "Quick favor — would you leave us a Google review? ⭐",
-          html: buildReviewHtml(reviewName),
-        }),
+      await sendEmailMutation.mutateAsync({
+        to: reviewEmail,
+        subject: "Quick favor — would you leave us a Google review? ⭐",
+        html: buildReviewHtml(reviewName),
       });
       setReviewSent(true);
       setReviewEmail(""); setReviewName("");
       showToast("Review request sent ✓");
       setTimeout(() => setReviewSent(false), 3000);
-    } catch (_) { showToast("Failed to send — check your API key", true); }
+    } catch (_) { showToast("Failed to send email", true); }
     setReviewSending(false);
   };
 
@@ -1374,7 +1356,6 @@ function MarketingHubPage({ clients, showToast }: { clients: Client[]; showToast
             <button className="btn btn-gold" onClick={sendCampaign} disabled={campaignSending} style={{ width: "100%" }}>
               {campaignSending ? "Sending…" : `📣 Send ${selectedCampaign.emoji} Campaign to All Clients`}
             </button>
-            {!apiKey && <div style={{ fontSize: 11, color: "#e07070", marginTop: 8, textAlign: "center" }}>⚠ Add your Resend API key in Settings to enable sending</div>}
           </div>
         </div>
       )}
@@ -1450,7 +1431,6 @@ function MarketingHubPage({ clients, showToast }: { clients: Client[]; showToast
               <button className="btn btn-gold" onClick={sendReviewRequest} disabled={reviewSending || !reviewEmail} style={{ width: "100%" }}>
                 {reviewSending ? "Sending…" : reviewSent ? "✓ Sent!" : "⭐ Send Google Review Request"}
               </button>
-              {!apiKey && <div style={{ fontSize: 11, color: "#e07070", marginTop: 8, textAlign: "center" }}>⚠ Add your Resend API key in Settings to enable sending</div>}
             </div>
             <div className="admin-card">
               <div style={{ fontSize: 11, color: "var(--text2-c)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 12 }}>Quick-Send to Recent Clients</div>

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
+import { trpc } from "@/lib/trpc";
 
 // ── DATA ──────────────────────────────────────────────────────────────────
 const DRIPS = [
@@ -21,6 +22,9 @@ const BADGE_CLASSES: Record<string, string> = {
 const TYPEWRITER_WORDS = ["Bloom", "Glow", "Thrive", "Radiate", "Recover"];
 
 export default function Home() {
+  const submitBookingMutation = trpc.email.submitBooking.useMutation();
+  const captureLeadMutation = trpc.email.captureLead.useMutation();
+
   const [filter, setFilter] = useState("all");
   const [openDrip, setOpenDrip] = useState<number | null>(null);
   const [twWord, setTwWord] = useState(0);
@@ -54,7 +58,6 @@ export default function Home() {
     e.preventDefault();
     if (!popupEmail) return;
     setPopupSending(true);
-    const apiKey = localStorage.getItem("resend_key") || "";
     // Save lead to localStorage client list
     const existing = JSON.parse(localStorage.getItem("bloom_clients") || "[]");
     const alreadyExists = existing.some((c: {email: string}) => c.email === popupEmail);
@@ -62,20 +65,10 @@ export default function Home() {
       const newClient = { id: Date.now(), first: popupName.split(" ")[0] || "Lead", last: popupName.split(" ").slice(1).join(" ") || "", email: popupEmail, phone: "", visits: 0, points: 0, type: "new", joined: new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" }) };
       localStorage.setItem("bloom_clients", JSON.stringify([...existing, newClient]));
     }
-    if (apiKey) {
-      try {
-        await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: { "Authorization": "Bearer " + apiKey, "Content-Type": "application/json" },
-          body: JSON.stringify({ from: "Bloom Drip Co. <onboarding@resend.dev>", to: [popupEmail], subject: "Your $25 Bloom Drip Co. Discount is Here 💛", html: buildWelcomeHtml(popupName, popupEmail) }),
-        });
-        // Notify admin
-        await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: { "Authorization": "Bearer " + apiKey, "Content-Type": "application/json" },
-          body: JSON.stringify({ from: "Bloom Drip Co. Leads <onboarding@resend.dev>", to: ["info@bloomdripco.com"], subject: `🌸 New Lead Captured — ${popupName || popupEmail}`, html: `<div style="font-family:sans-serif;background:#0a1a2a;color:#edeae0;padding:32px;border-radius:12px;"><h2 style="color:#c9a84c;font-family:Georgia,serif;">New Lead Captured</h2><p><strong>Name:</strong> ${popupName || '—'}</p><p><strong>Email:</strong> ${popupEmail}</p><p><strong>Discount Code Sent:</strong> BLOOM25</p><p style="color:rgba(200,216,232,0.5);font-size:12px;">This lead has been added to your Clients list in the Admin panel.</p></div>` }),
-        });
-      } catch (_) {}
+    try {
+      await captureLeadMutation.mutateAsync({ name: popupName, email: popupEmail });
+    } catch (_) {
+      // Silent fail — popup still shows success to user
     }
     setPopupSending(false);
     setPopupSent(true);
@@ -578,6 +571,7 @@ export default function Home() {
 }
 
 function BookingForm() {
+  const submitBookingMutation = trpc.email.submitBooking.useMutation();
   const [form, setForm] = useState({ name: "", phone: "", email: "", service: "Myers Cocktail", date: "", notes: "" });
   const [submitted, setSubmitted] = useState(false);
   const [sending, setSending] = useState(false);
@@ -728,38 +722,18 @@ function BookingForm() {
     e.preventDefault();
     setSending(true);
     setSendErr("");
-    const apiKey = localStorage.getItem("resend_key") || "";
-    const submittedAt = new Date().toLocaleString("en-US", { month: "long", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
-    const formWithTime = { ...form, submittedAt };
     try {
-      // 1. Notify admin at info@bloomdripco.com
-      if (apiKey) {
-        await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: { "Authorization": "Bearer " + apiKey, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            from: "Bloom Drip Co. Bookings <onboarding@resend.dev>",
-            to: ["info@bloomdripco.com"],
-            subject: `🌸 New Booking Request — ${form.name} · ${form.service}`,
-            html: buildNotifyHtml(formWithTime),
-          }),
-        });
-        // 2. Send confirmation to client (if they gave an email)
-        if (form.email) {
-          await fetch("https://api.resend.com/emails", {
-            method: "POST",
-            headers: { "Authorization": "Bearer " + apiKey, "Content-Type": "application/json" },
-            body: JSON.stringify({
-              from: "Bloom Drip Co. <onboarding@resend.dev>",
-              to: [form.email],
-              subject: "Your Bloom Drip Co. Booking Request is Confirmed 💛",
-              html: buildClientHtml(form),
-            }),
-          });
-        }
-      }
-    } catch (_) {
+      await submitBookingMutation.mutateAsync({
+        name: form.name,
+        phone: form.phone,
+        email: form.email,
+        service: form.service,
+        date: form.date,
+        notes: form.notes,
+      });
+    } catch (err) {
       // Silent fail — booking still shows success to user
+      console.error("Booking email error:", err);
     }
     setSending(false);
     setSubmitted(true);
