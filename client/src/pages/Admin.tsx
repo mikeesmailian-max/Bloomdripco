@@ -140,6 +140,7 @@ export default function Admin() {
             { id: "menu", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>, label: "IV Menu & Pricing" },
             { id: "promos", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>, label: "Promotions" },
             { id: "campaigns", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>, label: "Campaigns" },
+            { id: "marketing", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>, label: "Marketing Hub" },
             { id: "partnerships", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, label: "Partnerships" },
             { id: "settings", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>, label: "Settings" },
           ].map(item => (
@@ -186,6 +187,11 @@ export default function Admin() {
         {/* ── CAMPAIGNS ── */}
         {page === "campaigns" && (
           <CampaignsPage clients={clients} campaigns={campaigns} setCampaigns={cp => { setCampaigns(cp); saveAll(clients, bookings, menu, cp, promos); }} showToast={showToast} />
+        )}
+
+        {/* ── MARKETING HUB ── */}
+        {page === "marketing" && (
+          <MarketingHubPage clients={clients} showToast={showToast} />
         )}
 
         {/* ── PARTNERSHIPS ── */}
@@ -1180,6 +1186,312 @@ function PTips({ tips }: { tips: string[] }) {
           </li>
         ))}
       </ul>
+    </div>
+  );
+}
+
+
+// ── MARKETING HUB PAGE ────────────────────────────────────────────────────────
+type MTab = "campaigns" | "flyers" | "reviews";
+
+const SEASONAL_CAMPAIGNS = [
+  {
+    id: "new_year", emoji: "🎉", title: "New Year Detox", timing: "Jan 1–15",
+    subject: "Start 2026 right — $30 off your New Year IV Detox 🎉",
+    body: (name: string) => `Hi ${name},\n\nNew year, new you — and we're making it easy. For the first two weeks of January, Bloom Drip Co. is offering $30 off any IV session to help you kick off 2026 feeling your absolute best.\n\nWhether you're recovering from New Year's Eve or just ready to reset, our certified RNs will come directly to you.\n\nUse code: NY2026 at checkout.\n\nBook now → bloomdripco.com\n\nHere's to a healthy, radiant 2026,\nThe Bloom Drip Co. Team`,
+  },
+  {
+    id: "valentines", emoji: "💕", title: "Valentine's Glow", timing: "Feb 7–14",
+    subject: "Glow up for Valentine's Day 💕 — The Bloom Beauty Drip",
+    body: (name: string) => `Hi ${name},\n\nValentine's Day is coming up — and what better gift than glowing skin from the inside out?\n\nOur Bloom Beauty Glow IV is the ultimate pre-Valentine's treat: Glutathione for skin brightening, Biotin for hair & nails, and Vitamin C for that lit-from-within radiance.\n\nBook for yourself, or gift a session to someone special.\n\nUse code: VDAY25 for $25 off through February 14th.\n\nBook now → bloomdripco.com\n\nWith love,\nBloom Drip Co.`,
+  },
+  {
+    id: "super_bowl", emoji: "🏈", title: "Super Bowl Recovery", timing: "Super Bowl Sunday",
+    subject: "Super Bowl Sunday Recovery — We come to you 🏈",
+    body: (name: string) => `Hi ${name},\n\nBig game. Bigger party. Even bigger hangover.\n\nBloom Drip Co.'s Hangover Rescue IV is the fastest way to get back in the game after Super Bowl Sunday. Anti-nausea, anti-inflammatory, and full rehydration — delivered to your door by a certified RN.\n\nBook your morning-after slot now before we fill up. Use code: SUPERBOWL for $20 off.\n\nBook now → bloomdripco.com\n\nGo team,\nBloom Drip Co.`,
+  },
+  {
+    id: "mothers_day", emoji: "🌸", title: "Mother's Day Special", timing: "May 1–12",
+    subject: "The best Mother's Day gift she's never tried 🌸",
+    body: (name: string) => `Hi ${name},\n\nMothers deserve more than flowers. This Mother's Day, give the gift of true wellness with a Bloom Drip Co. IV session — delivered to her door by a certified RN.\n\nOur Bloom Beauty Glow and Myers Cocktail are the most popular gifts for moms who have everything.\n\nGift cards available. Use code: MOM25 for $25 off any session booked May 1–12.\n\nBook now → bloomdripco.com\n\nWith love,\nBloom Drip Co.`,
+  },
+  {
+    id: "summer", emoji: "☀️", title: "Summer Hydration", timing: "June–August",
+    subject: "LA summer heat hits different — stay hydrated with Bloom ☀️",
+    body: (name: string) => `Hi ${name},\n\nLA summers are no joke. When the heat is on, dehydration hits fast — and no amount of water catches up as quickly as an IV drip.\n\nOur Hydration Drip delivers pure saline, electrolytes, and magnesium directly into your bloodstream. 45 minutes. Your home or office. Certified RN.\n\nSummer special: $20 off Hydration Drips all season. Use code: SUMMER20.\n\nBook now → bloomdripco.com\n\nStay cool,\nBloom Drip Co.`,
+  },
+  {
+    id: "holiday", emoji: "🎄", title: "Holiday Recovery", timing: "Dec 20–31",
+    subject: "Holiday season survival kit — Bloom Drip Co. 🎄",
+    body: (name: string) => `Hi ${name},\n\nThe holidays are magical. The morning after? Not always.\n\nBloom Drip Co. is your holiday season wellness partner. Whether it's recovering from a company party, beating holiday stress, or starting the new year strong — we've got a drip for that.\n\nUse code: HOLIDAY25 for $25 off any session December 20–31.\n\nBook now → bloomdripco.com\n\nHappy holidays,\nBloom Drip Co.`,
+  },
+];
+
+const FLYER_TYPES = [
+  { id: "general", label: "General Promo", emoji: "🌟", tagline: "Luxury IV Therapy · Delivered to You", cta: "Book Your Session", color: "#c9a84c" },
+  { id: "bachelorette", label: "Bachelorette", emoji: "🥂", tagline: "The Ultimate Bachelorette Recovery Experience", cta: "Book the Group Package", color: "#d4a0af" },
+  { id: "corporate", label: "Corporate Wellness", emoji: "💼", tagline: "Elevate Your Team's Performance", cta: "Request a Corporate Quote", color: "#68c4ae" },
+  { id: "gym", label: "Athlete Recovery", emoji: "💪", tagline: "Train Hard. Recover Harder.", cta: "Book Your Recovery Session", color: "#b0a4e0" },
+];
+
+function MarketingHubPage({ clients, showToast }: { clients: Client[]; showToast: (m: string, e?: boolean) => void }) {
+  const [mTab, setMTab] = useState<MTab>("campaigns");
+  const [selectedCampaign, setSelectedCampaign] = useState(SEASONAL_CAMPAIGNS[0]);
+  const [campaignSending, setCampaignSending] = useState(false);
+  const [selectedFlyer, setSelectedFlyer] = useState(FLYER_TYPES[0]);
+  const [reviewEmail, setReviewEmail] = useState("");
+  const [reviewName, setReviewName] = useState("");
+  const [reviewSending, setReviewSending] = useState(false);
+  const [reviewSent, setReviewSent] = useState(false);
+
+  const apiKey = localStorage.getItem("resend_key") || "";
+
+  const buildCampaignHtml = (campaign: typeof SEASONAL_CAMPAIGNS[0], clientName: string) => {
+    const bodyText = campaign.body(clientName);
+    const paragraphs = bodyText.split("\n\n").map(p => p.trim()).filter(Boolean);
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head><body style="margin:0;padding:0;background:#020b14;font-family:'Helvetica Neue',Arial,sans-serif;"><table width="100%" cellpadding="0" cellspacing="0" style="background:#020b14;padding:40px 20px;"><tr><td align="center"><table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#0a1a2a;border-radius:16px;border:1px solid rgba(201,168,76,0.3);overflow:hidden;"><tr><td style="background:linear-gradient(135deg,#0a1a2a,#0d2035);padding:40px;border-bottom:1px solid rgba(201,168,76,0.3);text-align:center;"><div style="font-size:40px;margin-bottom:12px;">${campaign.emoji}</div><div style="font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:rgba(201,168,76,0.7);margin-bottom:10px;">Bloom Drip Co. · Los Angeles</div><h1 style="margin:0;font-family:Georgia,serif;font-size:24px;color:#edeae0;">${campaign.title}</h1></td></tr><tr><td style="padding:36px 40px;">${paragraphs.map(p => `<p style="font-size:14px;color:rgba(200,216,232,0.75);line-height:1.85;margin:0 0 18px;">${p.replace(/\n/g, '<br/>')}</p>`).join('')}<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:28px;"><tr><td align="center"><a href="https://bloomdrip-fm7zlieb.manus.space/#booking" style="display:inline-block;background:linear-gradient(135deg,#c9a84c,#8f7630);color:#010a12;font-weight:700;font-size:13px;letter-spacing:0.06em;text-transform:uppercase;padding:14px 36px;border-radius:50px;text-decoration:none;">Book Now →</a></td></tr></table></td></tr><tr><td style="background:#071828;padding:24px 40px;border-top:1px solid rgba(201,168,76,0.15);text-align:center;"><div style="font-family:Georgia,serif;font-size:14px;color:rgba(201,168,76,0.6);margin-bottom:6px;">Bloom Drip Co.</div><div style="font-size:11px;color:rgba(200,216,232,0.3);">Luxury Mobile IV Infusion · Los Angeles, CA · (818) 515-8980</div><div style="font-size:10px;color:rgba(200,216,232,0.2);margin-top:8px;">You're receiving this because you're a valued Bloom client.</div></td></tr></table></td></tr></table></body></html>`;
+  };
+
+  const buildReviewHtml = (name: string) => `<!DOCTYPE html><html><head><meta charset="UTF-8"/></head><body style="margin:0;padding:0;background:#020b14;font-family:'Helvetica Neue',Arial,sans-serif;"><table width="100%" cellpadding="0" cellspacing="0" style="background:#020b14;padding:40px 20px;"><tr><td align="center"><table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#0a1a2a;border-radius:16px;border:1px solid rgba(201,168,76,0.3);overflow:hidden;"><tr><td style="background:linear-gradient(135deg,#0a1a2a,#0d2035);padding:40px;border-bottom:1px solid rgba(201,168,76,0.3);text-align:center;"><div style="font-size:36px;margin-bottom:12px;">⭐</div><div style="font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:rgba(201,168,76,0.7);margin-bottom:10px;">Bloom Drip Co. · Los Angeles</div><h1 style="margin:0;font-family:Georgia,serif;font-size:24px;color:#edeae0;">How Was Your Experience?</h1></td></tr><tr><td style="padding:36px 40px;"><p style="font-size:15px;color:rgba(200,216,232,0.75);line-height:1.8;margin:0 0 18px;">Hi <strong style="color:#edeae0;">${name || 'there'}</strong>,</p><p style="font-size:14px;color:rgba(200,216,232,0.65);line-height:1.85;margin:0 0 18px;">Thank you so much for choosing Bloom Drip Co. for your IV therapy session. We hope you felt the difference!</p><p style="font-size:14px;color:rgba(200,216,232,0.65);line-height:1.85;margin:0 0 28px;">If you had a great experience, we'd be incredibly grateful if you could take 60 seconds to leave us a Google review. It helps other people in LA discover us — and it means the world to our small team.</p><table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:28px;"><tr><td align="center"><a href="https://g.page/r/BLOOM_DRIP_CO_GOOGLE_REVIEW_LINK" style="display:inline-block;background:linear-gradient(135deg,#c9a84c,#8f7630);color:#010a12;font-weight:700;font-size:14px;letter-spacing:0.06em;text-transform:uppercase;padding:16px 40px;border-radius:50px;text-decoration:none;">⭐ Leave a Google Review</a></td></tr></table><p style="font-size:13px;color:rgba(200,216,232,0.4);line-height:1.7;margin:0;">It only takes 60 seconds and helps us more than you know. Thank you! 💛</p></td></tr><tr><td style="background:#071828;padding:24px 40px;border-top:1px solid rgba(201,168,76,0.15);text-align:center;"><div style="font-family:Georgia,serif;font-size:14px;color:rgba(201,168,76,0.6);margin-bottom:6px;">Bloom Drip Co.</div><div style="font-size:11px;color:rgba(200,216,232,0.3);">Luxury Mobile IV Infusion · Los Angeles, CA · (818) 515-8980</div></td></tr></table></td></tr></table></body></html>`;
+
+  const sendCampaign = async () => {
+    if (!apiKey) { showToast("Add your Resend API key in Settings first", true); return; }
+    const targets = clients.filter(c => c.email);
+    if (!targets.length) { showToast("No clients with email addresses found", true); return; }
+    setCampaignSending(true);
+    let sent = 0;
+    for (const c of targets) {
+      try {
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { "Authorization": "Bearer " + apiKey, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            from: "Bloom Drip Co. <onboarding@resend.dev>",
+            to: [c.email],
+            subject: selectedCampaign.subject,
+            html: buildCampaignHtml(selectedCampaign, c.first),
+          }),
+        });
+        sent++;
+      } catch (_) {}
+    }
+    setCampaignSending(false);
+    showToast(`✓ Campaign sent to ${sent} client${sent !== 1 ? "s" : ""}`);
+  };
+
+  const sendReviewRequest = async () => {
+    if (!apiKey) { showToast("Add your Resend API key in Settings first", true); return; }
+    if (!reviewEmail) { showToast("Enter a client email address", true); return; }
+    setReviewSending(true);
+    try {
+      await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { "Authorization": "Bearer " + apiKey, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          from: "Bloom Drip Co. <onboarding@resend.dev>",
+          to: [reviewEmail],
+          subject: "Quick favor — would you leave us a Google review? ⭐",
+          html: buildReviewHtml(reviewName),
+        }),
+      });
+      setReviewSent(true);
+      setReviewEmail(""); setReviewName("");
+      showToast("Review request sent ✓");
+      setTimeout(() => setReviewSent(false), 3000);
+    } catch (_) { showToast("Failed to send — check your API key", true); }
+    setReviewSending(false);
+  };
+
+  return (
+    <div>
+      <style>{`
+        .mhub-tab { padding: 8px 18px; border-radius: 8px; font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; cursor: pointer; transition: all .2s; background: transparent; color: var(--text2-c); border: 1px solid transparent; }
+        .mhub-tab:hover { color: var(--cream); background: rgba(201,168,76,.09); }
+        .mhub-tab.on { background: rgba(201,168,76,.09); border-color: rgba(201,168,76,.28); color: var(--gold); }
+        .campaign-card { background: var(--panel2); border: 1px solid rgba(201,168,76,.15); border-radius: 12px; padding: 16px 18px; cursor: pointer; transition: all .2s; }
+        .campaign-card:hover, .campaign-card.sel { border-color: rgba(201,168,76,.4); background: rgba(201,168,76,.07); }
+        .flyer-card { background: var(--panel2); border: 2px solid rgba(201,168,76,.15); border-radius: 12px; padding: 18px; cursor: pointer; transition: all .2s; text-align: center; }
+        .flyer-card:hover, .flyer-card.sel { border-color: rgba(201,168,76,.5); background: rgba(201,168,76,.07); }
+        .flyer-preview { background: #020b14; border: 1px solid rgba(201,168,76,.28); border-radius: 16px; padding: 40px 32px; text-align: center; font-family: Georgia, serif; }
+      `}</style>
+
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24, flexWrap: "wrap", gap: 12 }}>
+        <div>
+          <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, color: "var(--cream)", marginBottom: 4 }}>Marketing Hub</h1>
+          <p style={{ fontSize: 13, color: "var(--text2-c)" }}>Your customer acquisition toolkit — campaigns, flyers, and review requests.</p>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {(["campaigns","flyers","reviews"] as MTab[]).map(t => (
+            <button key={t} className={`mhub-tab${mTab === t ? " on" : ""}`} onClick={() => setMTab(t)}>
+              {t === "campaigns" && "📣 "}{t === "flyers" && "🖨 "}{t === "reviews" && "⭐ "}
+              {t.charAt(0).toUpperCase() + t.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* ── SEASONAL CAMPAIGNS ── */}
+      {mTab === "campaigns" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+          <div>
+            <div className="admin-card-title" style={{ marginBottom: 14 }}>Choose a Campaign</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {SEASONAL_CAMPAIGNS.map(c => (
+                <div key={c.id} className={`campaign-card${selectedCampaign.id === c.id ? " sel" : ""}`} onClick={() => setSelectedCampaign(c)}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <span style={{ fontSize: 22 }}>{c.emoji}</span>
+                    <div>
+                      <div style={{ fontWeight: 600, color: "var(--cream)", fontSize: 14 }}>{c.title}</div>
+                      <div style={{ fontSize: 11, color: "var(--text2-c)", marginTop: 2 }}>Best timing: {c.timing}</div>
+                    </div>
+                    {selectedCampaign.id === c.id && <span style={{ marginLeft: "auto", color: "var(--gold)", fontSize: 16 }}>✓</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div>
+            <div className="admin-card-title" style={{ marginBottom: 14 }}>Preview & Send</div>
+            <div className="admin-card" style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 11, color: "var(--text2-c)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 8 }}>Subject Line</div>
+              <div style={{ fontSize: 13, color: "var(--cream)", fontWeight: 600, marginBottom: 16 }}>{selectedCampaign.subject}</div>
+              <div style={{ fontSize: 11, color: "var(--text2-c)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 8 }}>Email Body Preview</div>
+              <div style={{ background: "rgba(0,0,0,.3)", borderRadius: 8, padding: "14px 16px", fontSize: 12, color: "var(--text2-c)", lineHeight: 1.8, whiteSpace: "pre-wrap", maxHeight: 200, overflowY: "auto" }}>
+                {selectedCampaign.body("[Client Name]")}
+              </div>
+            </div>
+            <div className="admin-card" style={{ marginBottom: 16 }}>
+              <div style={{ fontSize: 12, color: "var(--text2-c)", marginBottom: 10 }}>
+                This will send to <strong style={{ color: "var(--cream)" }}>{clients.filter(c => c.email).length} clients</strong> with email addresses on file.
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {clients.filter(c => c.email).slice(0, 5).map(c => (
+                  <span key={c.id} style={{ background: "rgba(201,168,76,.09)", border: "1px solid rgba(201,168,76,.2)", borderRadius: 50, padding: "3px 10px", fontSize: 11, color: "var(--gold)" }}>{c.first} {c.last}</span>
+                ))}
+                {clients.filter(c => c.email).length > 5 && <span style={{ fontSize: 11, color: "var(--text2-c)", padding: "3px 0" }}>+{clients.filter(c => c.email).length - 5} more</span>}
+              </div>
+            </div>
+            <button className="btn btn-gold" onClick={sendCampaign} disabled={campaignSending} style={{ width: "100%" }}>
+              {campaignSending ? "Sending…" : `📣 Send ${selectedCampaign.emoji} Campaign to All Clients`}
+            </button>
+            {!apiKey && <div style={{ fontSize: 11, color: "#e07070", marginTop: 8, textAlign: "center" }}>⚠ Add your Resend API key in Settings to enable sending</div>}
+          </div>
+        </div>
+      )}
+
+      {/* ── FLYER GENERATOR ── */}
+      {mTab === "flyers" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+          <div>
+            <div className="admin-card-title" style={{ marginBottom: 14 }}>Choose Flyer Type</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}>
+              {FLYER_TYPES.map(f => (
+                <div key={f.id} className={`flyer-card${selectedFlyer.id === f.id ? " sel" : ""}`} onClick={() => setSelectedFlyer(f)}>
+                  <div style={{ fontSize: 28, marginBottom: 8 }}>{f.emoji}</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--cream)" }}>{f.label}</div>
+                </div>
+              ))}
+            </div>
+            <div className="admin-card">
+              <div style={{ fontSize: 11, color: "var(--text2-c)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 10 }}>How to Use</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {["Right-click the flyer preview → Save as image (or screenshot it)","Print at any FedEx, Staples, or Walgreens — 4×6 or 5×7 works great","Drop them at gyms, hotels, salons, and coffee shops in your area","Add your QR code to the flyer using qr-code-generator.com (free)"].map(t => (
+                  <div key={t} style={{ fontSize: 12, color: "var(--text2-c)", paddingLeft: 14, position: "relative", lineHeight: 1.6 }}>
+                    <span style={{ position: "absolute", left: 0, color: "var(--gold)" }}>→</span>{t}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div>
+            <div className="admin-card-title" style={{ marginBottom: 14 }}>Flyer Preview</div>
+            <div className="flyer-preview" id="flyer-preview-area">
+              <div style={{ fontSize: 11, letterSpacing: ".18em", textTransform: "uppercase", color: "rgba(201,168,76,.6)", marginBottom: 10 }}>Bloom Drip Co. · Los Angeles</div>
+              <div style={{ fontSize: 48, marginBottom: 12 }}>{selectedFlyer.emoji}</div>
+              <h2 style={{ fontSize: 22, fontWeight: 700, color: "#edeae0", marginBottom: 8, lineHeight: 1.2 }}>{selectedFlyer.tagline}</h2>
+              <div style={{ width: 40, height: 2, background: selectedFlyer.color, margin: "14px auto" }} />
+              <p style={{ fontSize: 13, color: "rgba(200,216,232,0.55)", lineHeight: 1.75, marginBottom: 20, maxWidth: 280, margin: "0 auto 20px" }}>
+                Certified Registered Nurses deliver premium IV therapy directly to your home, hotel, or office. No clinic. No wait. Just results.
+              </p>
+              <div style={{ background: `rgba(${selectedFlyer.color === "#c9a84c" ? "201,168,76" : selectedFlyer.color === "#d4a0af" ? "212,160,175" : selectedFlyer.color === "#68c4ae" ? "104,196,174" : "176,164,224"},.12)`, border: `1px solid ${selectedFlyer.color}44`, borderRadius: 10, padding: "12px 20px", marginBottom: 20, display: "inline-block" }}>
+                <div style={{ fontSize: 11, color: "rgba(200,216,232,.5)", letterSpacing: ".08em", textTransform: "uppercase", marginBottom: 4 }}>Use code</div>
+                <div style={{ fontFamily: "Georgia, serif", fontSize: 24, color: selectedFlyer.color, fontWeight: 700, letterSpacing: ".1em" }}>BLOOM25</div>
+                <div style={{ fontSize: 11, color: "rgba(200,216,232,.4)" }}>$25 off your first session</div>
+              </div>
+              <div style={{ background: "linear-gradient(135deg,#c9a84c,#8f7630)", color: "#010a12", fontWeight: 700, fontSize: 13, letterSpacing: ".08em", textTransform: "uppercase", padding: "12px 28px", borderRadius: 50, display: "inline-block", marginBottom: 16 }}>
+                {selectedFlyer.cta}
+              </div>
+              <div style={{ fontSize: 12, color: "rgba(200,216,232,.35)", marginTop: 8 }}>bloomdripco.com · (818) 515-8980</div>
+            </div>
+            <button className="btn btn-gold" style={{ width: "100%", marginTop: 12 }} onClick={() => { window.print(); showToast("Opening print dialog…"); }}>
+              🖨 Print This Flyer
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── GOOGLE REVIEW REQUESTS ── */}
+      {mTab === "reviews" && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 24 }}>
+          <div>
+            <div className="admin-card-title" style={{ marginBottom: 14 }}>Send Review Request</div>
+            <div className="admin-card" style={{ marginBottom: 16 }}>
+              <p style={{ fontSize: 13, color: "var(--text2-c)", lineHeight: 1.75, marginBottom: 20 }}>
+                Send a beautifully branded email asking a client to leave you a Google review. Best sent within 24 hours of completing their session — that's when they feel the best.
+              </p>
+              <div className="form-group" style={{ marginBottom: 12 }}>
+                <label className="form-label">Client Name</label>
+                <input className="admin-input" placeholder="Sophia Chen" value={reviewName} onChange={e => setReviewName(e.target.value)} />
+              </div>
+              <div className="form-group" style={{ marginBottom: 16 }}>
+                <label className="form-label">Client Email *</label>
+                <input className="admin-input" type="email" placeholder="sophia@email.com" value={reviewEmail} onChange={e => setReviewEmail(e.target.value)} />
+              </div>
+              <button className="btn btn-gold" onClick={sendReviewRequest} disabled={reviewSending || !reviewEmail} style={{ width: "100%" }}>
+                {reviewSending ? "Sending…" : reviewSent ? "✓ Sent!" : "⭐ Send Google Review Request"}
+              </button>
+              {!apiKey && <div style={{ fontSize: 11, color: "#e07070", marginTop: 8, textAlign: "center" }}>⚠ Add your Resend API key in Settings to enable sending</div>}
+            </div>
+            <div className="admin-card">
+              <div style={{ fontSize: 11, color: "var(--text2-c)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 12 }}>Quick-Send to Recent Clients</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {clients.filter(c => c.email && c.visits > 0).slice(0, 6).map(c => (
+                  <div key={c.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 0", borderBottom: "1px solid rgba(201,168,76,.07)" }}>
+                    <div>
+                      <div style={{ fontSize: 13, color: "var(--cream)", fontWeight: 600 }}>{c.first} {c.last}</div>
+                      <div style={{ fontSize: 11, color: "var(--text2-c)" }}>{c.visits} visit{c.visits !== 1 ? "s" : ""} · {c.email}</div>
+                    </div>
+                    <button className="btn btn-outline btn-sm" onClick={() => { setReviewName(`${c.first} ${c.last}`); setReviewEmail(c.email); setMTab("reviews"); showToast("Client loaded — click Send to fire the email"); }}>
+                      Load
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <div>
+            <div className="admin-card-title" style={{ marginBottom: 14 }}>Email Preview</div>
+            <div style={{ background: "#020b14", border: "1px solid rgba(201,168,76,.28)", borderRadius: 16, padding: "32px 28px", fontFamily: "Georgia, serif", textAlign: "center" }}>
+              <div style={{ fontSize: 36, marginBottom: 10 }}>⭐</div>
+              <div style={{ fontSize: 11, letterSpacing: ".12em", textTransform: "uppercase", color: "rgba(201,168,76,.6)", marginBottom: 8 }}>Bloom Drip Co. · Los Angeles</div>
+              <h3 style={{ fontFamily: "Georgia, serif", fontSize: 20, color: "#edeae0", marginBottom: 16 }}>How Was Your Experience?</h3>
+              <p style={{ fontSize: 13, color: "rgba(200,216,232,.6)", lineHeight: 1.8, marginBottom: 16 }}>Hi <strong style={{ color: "#edeae0" }}>{reviewName || "[Client Name]"}</strong>,</p>
+              <p style={{ fontSize: 13, color: "rgba(200,216,232,.55)", lineHeight: 1.8, marginBottom: 20 }}>Thank you for choosing Bloom Drip Co.! If you had a great experience, we'd love a quick Google review. It helps other people in LA find us.</p>
+              <div style={{ background: "linear-gradient(135deg,#c9a84c,#8f7630)", color: "#010a12", fontWeight: 700, fontSize: 13, letterSpacing: ".06em", textTransform: "uppercase", padding: "13px 28px", borderRadius: 50, display: "inline-block", marginBottom: 16 }}>⭐ Leave a Google Review</div>
+              <p style={{ fontSize: 11, color: "rgba(200,216,232,.3)" }}>Takes 60 seconds. Means the world to us. 💛</p>
+            </div>
+            <div className="admin-card" style={{ marginTop: 16 }}>
+              <div style={{ fontSize: 11, color: "var(--text2-c)", textTransform: "uppercase", letterSpacing: ".07em", marginBottom: 10 }}>⚙ Setup: Add Your Google Review Link</div>
+              <p style={{ fontSize: 12, color: "var(--text2-c)", lineHeight: 1.7, marginBottom: 10 }}>To activate the review button in the email, replace the placeholder URL with your actual Google review link:</p>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                {["1. Search your business on Google Maps","2. Click 'Write a Review'","3. Copy the URL from your browser","4. Paste it in Settings → Google Review URL"].map(s => (
+                  <div key={s} style={{ fontSize: 12, color: "rgba(200,216,232,.5)" }}>{s}</div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

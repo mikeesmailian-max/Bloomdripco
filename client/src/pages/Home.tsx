@@ -32,6 +32,64 @@ export default function Home() {
   const [loginErr, setLoginErr] = useState("");
   const revealRefs = useRef<HTMLElement[]>([]);
 
+  // ── Lead Capture Popup ──
+  const [popupOpen, setPopupOpen] = useState(false);
+  const [popupEmail, setPopupEmail] = useState("");
+  const [popupName, setPopupName] = useState("");
+  const [popupSent, setPopupSent] = useState(false);
+  const [popupSending, setPopupSending] = useState(false);
+
+  useEffect(() => {
+    const dismissed = localStorage.getItem("bloom_popup_dismissed");
+    if (dismissed) return;
+    const timer = setTimeout(() => setPopupOpen(true), 8000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const dismissPopup = () => { setPopupOpen(false); localStorage.setItem("bloom_popup_dismissed", "1"); };
+
+  const buildWelcomeHtml = (name: string, email: string) => `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Your $25 Discount — Bloom Drip Co.</title></head><body style="margin:0;padding:0;background:#020b14;font-family:'Helvetica Neue',Arial,sans-serif;"><table width="100%" cellpadding="0" cellspacing="0" style="background:#020b14;padding:40px 20px;"><tr><td align="center"><table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#0a1a2a;border-radius:16px;border:1px solid rgba(201,168,76,0.3);overflow:hidden;"><tr><td style="background:linear-gradient(135deg,#0a1a2a,#0d2035);padding:40px;border-bottom:1px solid rgba(201,168,76,0.3);text-align:center;"><div style="font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:rgba(201,168,76,0.7);margin-bottom:10px;">Bloom Drip Co. · Los Angeles</div><h1 style="margin:0;font-family:Georgia,serif;font-size:26px;color:#edeae0;">Welcome to <span style="color:#c9a84c;font-style:italic;">Bloom</span> 💛</h1></td></tr><tr><td style="padding:36px 40px;"><p style="font-size:15px;color:rgba(200,216,232,0.75);line-height:1.8;margin:0 0 20px;">Hi <strong style="color:#edeae0;">${name || 'there'}</strong>,</p><p style="font-size:14px;color:rgba(200,216,232,0.65);line-height:1.8;margin:0 0 28px;">Thank you for joining the Bloom family! As promised, here's your exclusive first-timer discount:</p><table width="100%" cellpadding="0" cellspacing="0" style="background:rgba(201,168,76,0.06);border:1px solid rgba(201,168,76,0.25);border-radius:12px;margin-bottom:28px;"><tr><td style="padding:24px;text-align:center;"><div style="font-size:12px;text-transform:uppercase;letter-spacing:0.1em;color:rgba(201,168,76,0.6);margin-bottom:8px;">Your Discount Code</div><div style="font-family:Georgia,serif;font-size:36px;font-weight:700;color:#c9a84c;letter-spacing:0.08em;">BLOOM25</div><div style="font-size:13px;color:rgba(200,216,232,0.5);margin-top:8px;">$25 off your first IV session</div></td></tr></table><p style="font-size:13px;color:rgba(200,216,232,0.5);line-height:1.7;margin:0 0 28px;">Use this code when booking your first session. Valid for any drip on our menu. No expiration — take your time.</p><table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center"><a href="https://bloomdrip-fm7zlieb.manus.space/#booking" style="display:inline-block;background:linear-gradient(135deg,#c9a84c,#8f7630);color:#010a12;font-weight:700;font-size:13px;letter-spacing:0.06em;text-transform:uppercase;padding:14px 36px;border-radius:50px;text-decoration:none;">Book My First Session →</a></td></tr></table></td></tr><tr><td style="background:#071828;padding:24px 40px;border-top:1px solid rgba(201,168,76,0.15);text-align:center;"><div style="font-family:Georgia,serif;font-size:14px;color:rgba(201,168,76,0.6);margin-bottom:6px;">Bloom Drip Co.</div><div style="font-size:11px;color:rgba(200,216,232,0.3);">Luxury Mobile IV Infusion · Los Angeles, CA · (818) 515-8980</div></td></tr></table></td></tr></table></body></html>`;
+
+  const submitPopup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!popupEmail) return;
+    setPopupSending(true);
+    const apiKey = localStorage.getItem("resend_key") || "";
+    // Save lead to localStorage client list
+    const existing = JSON.parse(localStorage.getItem("bloom_clients") || "[]");
+    const alreadyExists = existing.some((c: {email: string}) => c.email === popupEmail);
+    if (!alreadyExists) {
+      const newClient = { id: Date.now(), first: popupName.split(" ")[0] || "Lead", last: popupName.split(" ").slice(1).join(" ") || "", email: popupEmail, phone: "", visits: 0, points: 0, type: "new", joined: new Date().toLocaleDateString("en-US", { month: "short", year: "numeric" }) };
+      localStorage.setItem("bloom_clients", JSON.stringify([...existing, newClient]));
+    }
+    if (apiKey) {
+      try {
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { "Authorization": "Bearer " + apiKey, "Content-Type": "application/json" },
+          body: JSON.stringify({ from: "Bloom Drip Co. <onboarding@resend.dev>", to: [popupEmail], subject: "Your $25 Bloom Drip Co. Discount is Here 💛", html: buildWelcomeHtml(popupName, popupEmail) }),
+        });
+        // Notify admin
+        await fetch("https://api.resend.com/emails", {
+          method: "POST",
+          headers: { "Authorization": "Bearer " + apiKey, "Content-Type": "application/json" },
+          body: JSON.stringify({ from: "Bloom Drip Co. Leads <onboarding@resend.dev>", to: ["info@bloomdripco.com"], subject: `🌸 New Lead Captured — ${popupName || popupEmail}`, html: `<div style="font-family:sans-serif;background:#0a1a2a;color:#edeae0;padding:32px;border-radius:12px;"><h2 style="color:#c9a84c;font-family:Georgia,serif;">New Lead Captured</h2><p><strong>Name:</strong> ${popupName || '—'}</p><p><strong>Email:</strong> ${popupEmail}</p><p><strong>Discount Code Sent:</strong> BLOOM25</p><p style="color:rgba(200,216,232,0.5);font-size:12px;">This lead has been added to your Clients list in the Admin panel.</p></div>` }),
+        });
+      } catch (_) {}
+    }
+    setPopupSending(false);
+    setPopupSent(true);
+    localStorage.setItem("bloom_popup_dismissed", "1");
+    setTimeout(() => setPopupOpen(false), 3000);
+  };
+
+  // ── Refer-a-Friend ──
+  const [referralCopied, setReferralCopied] = useState(false);
+  const getReferralLink = () => `${window.location.origin}/?ref=${btoa(Date.now().toString()).slice(0,8)}`;
+  const copyReferral = () => {
+    navigator.clipboard.writeText(getReferralLink()).then(() => { setReferralCopied(true); setTimeout(() => setReferralCopied(false), 2500); });
+  };
+
   // Typewriter effect
   useEffect(() => {
     const interval = setInterval(() => {
@@ -434,6 +492,62 @@ export default function Home() {
         </div>
         <div style={{ fontSize: ".72rem", color: "rgba(237,234,224,.28)" }}>© 2026 Bloom Drip Co. All rights reserved.</div>
       </footer>
+
+      {/* ── REFER-A-FRIEND SECTION ── */}
+      <section id="refer" style={{ background: "linear-gradient(135deg,rgba(201,168,76,.06),rgba(13,32,53,.8))", border: "1px solid rgba(201,168,76,.18)", borderLeft: "none", borderRight: "none", padding: "4.5rem 5%" }}>
+        <div style={{ maxWidth: 860, margin: "0 auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "3rem", alignItems: "center" }}>
+          <div>
+            <div className="s-tag" style={{ marginBottom: 14 }}>Refer a Friend</div>
+            <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(1.6rem,3.5vw,2.4rem)", fontWeight: 700, color: "var(--cream)", lineHeight: 1.2, marginBottom: 12 }}>Share the <em style={{ color: "var(--gold)", fontStyle: "italic" }}>Bloom</em> Effect</h2>
+            <p style={{ fontSize: ".9rem", color: "rgba(237,234,224,.55)", lineHeight: 1.8, marginBottom: 24 }}>Love your drip? Share your unique link with a friend. When they book their first session, you both earn <strong style={{ color: "var(--gold)" }}>250 bonus loyalty points</strong> — that's $25 toward your next visit.</p>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {["✦ Your friend gets $25 off their first drip","✦ You earn 250 bonus loyalty points","✦ No limit — refer as many as you want","✦ Points never expire"].map(t => (
+                <div key={t} style={{ fontSize: ".85rem", color: "rgba(237,234,224,.65)" }}>{t}</div>
+              ))}
+            </div>
+          </div>
+          <div style={{ background: "var(--glass)", border: "1px solid rgba(201,168,76,.28)", borderRadius: 20, padding: "2rem" }}>
+            <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--gold)", marginBottom: 16 }}>Your Referral Link</div>
+            <div style={{ background: "rgba(255,255,255,.04)", border: "1px solid rgba(201,168,76,.2)", borderRadius: 10, padding: "12px 16px", fontSize: 12, color: "rgba(237,234,224,.5)", fontFamily: "monospace", marginBottom: 14, wordBreak: "break-all" }}>
+              {typeof window !== "undefined" ? `${window.location.origin}/?ref=YOUR_CODE` : "bloomdripco.com/?ref=YOUR_CODE"}
+            </div>
+            <button onClick={copyReferral} style={{ width: "100%", padding: "12px", background: referralCopied ? "rgba(76,175,130,.18)" : "linear-gradient(135deg,var(--gold),var(--gold-lt))", color: referralCopied ? "#4caf82" : "#010a12", fontWeight: 700, fontSize: ".82rem", letterSpacing: ".07em", textTransform: "uppercase", borderRadius: 50, border: referralCopied ? "1px solid rgba(76,175,130,.4)" : "none", cursor: "pointer", transition: "all .25s" }}>
+              {referralCopied ? "✓ Link Copied!" : "Copy My Referral Link"}
+            </button>
+            <div style={{ marginTop: 16, fontSize: 11, color: "rgba(237,234,224,.3)", textAlign: "center", lineHeight: 1.6 }}>Share via text, Instagram DM, or email. Points are credited automatically after your friend's first completed session.</div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── LEAD CAPTURE POPUP ── */}
+      {popupOpen && (
+        <div onClick={(e) => { if (e.target === e.currentTarget) dismissPopup(); }} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.75)", backdropFilter: "blur(10px)", zIndex: 10001, display: "flex", alignItems: "center", justifyContent: "center", padding: "1rem" }}>
+          <div style={{ background: "linear-gradient(145deg,#0a1a2a,#0d2035)", border: "1px solid rgba(201,168,76,.35)", borderRadius: 24, padding: "48px 44px", maxWidth: 460, width: "100%", textAlign: "center", boxShadow: "0 0 80px rgba(201,168,76,.12), 0 40px 80px rgba(0,0,0,.6)", position: "relative" }}>
+            <button onClick={dismissPopup} style={{ position: "absolute", top: 16, right: 18, background: "none", border: "none", color: "rgba(237,234,224,.3)", fontSize: 20, cursor: "pointer", lineHeight: 1 }}>×</button>
+            {popupSent ? (
+              <div>
+                <div style={{ fontSize: "3rem", marginBottom: 12 }}>💛</div>
+                <h3 style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.6rem", color: "var(--cream)", marginBottom: 10 }}>You're In!</h3>
+                <p style={{ fontSize: ".9rem", color: "rgba(237,234,224,.55)", lineHeight: 1.7 }}>Check your inbox for your <strong style={{ color: "var(--gold)" }}>$25 discount code</strong>. Welcome to the Bloom family!</p>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 6, background: "rgba(201,168,76,.09)", border: "1px solid rgba(201,168,76,.28)", padding: "4px 14px", borderRadius: 50, fontSize: 11, fontWeight: 700, letterSpacing: ".1em", textTransform: "uppercase", color: "var(--gold)", marginBottom: 18 }}>Limited Offer</div>
+                <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "clamp(1.5rem,4vw,2rem)", fontWeight: 700, color: "var(--cream)", lineHeight: 1.2, marginBottom: 10 }}>Get <span style={{ color: "var(--gold)" }}>$25 Off</span> Your First Drip</h2>
+                <p style={{ fontSize: ".88rem", color: "rgba(237,234,224,.55)", lineHeight: 1.75, marginBottom: 28 }}>Join the Bloom family and receive an exclusive discount code for your first IV therapy session — delivered straight to your inbox.</p>
+                <form onSubmit={submitPopup}>
+                  <input type="text" placeholder="Your first name" value={popupName} onChange={e => setPopupName(e.target.value)} style={{ width: "100%", background: "rgba(255,255,255,.04)", border: "1px solid rgba(201,168,76,.28)", borderRadius: 10, padding: "12px 16px", color: "var(--cream)", fontSize: 14, outline: "none", marginBottom: 12, boxSizing: "border-box" }} />
+                  <input required type="email" placeholder="Email address *" value={popupEmail} onChange={e => setPopupEmail(e.target.value)} style={{ width: "100%", background: "rgba(255,255,255,.04)", border: "1px solid rgba(201,168,76,.28)", borderRadius: 10, padding: "12px 16px", color: "var(--cream)", fontSize: 14, outline: "none", marginBottom: 18, boxSizing: "border-box" }} />
+                  <button type="submit" disabled={popupSending} style={{ width: "100%", padding: 14, background: popupSending ? "rgba(201,168,76,.4)" : "linear-gradient(135deg,var(--gold),var(--gold-lt))", color: "#010a12", fontWeight: 700, fontSize: ".9rem", letterSpacing: ".07em", textTransform: "uppercase", borderRadius: 50, border: "none", cursor: popupSending ? "not-allowed" : "pointer", boxShadow: "0 6px 28px rgba(201,168,76,.35)", transition: "all .2s" }}>
+                    {popupSending ? "Sending…" : "Claim My $25 Discount →"}
+                  </button>
+                </form>
+                <div style={{ marginTop: 14, fontSize: 11, color: "rgba(237,234,224,.25)" }}>No spam. Unsubscribe anytime. We hate junk mail too.</div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── LOGIN MODAL ── */}
       {loginOpen && (
