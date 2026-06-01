@@ -1,6 +1,6 @@
-import { eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
-import { InsertUser, users } from "../drizzle/schema";
+import { bookings, InsertBooking, InsertUser, unsubscribes, users } from "../drizzle/schema";
 import { ENV } from './_core/env';
 
 let _db: ReturnType<typeof drizzle> | null = null;
@@ -89,4 +89,72 @@ export async function getUserByOpenId(openId: string) {
   return result.length > 0 ? result[0] : undefined;
 }
 
-// TODO: add feature queries here as your schema grows.
+// ─── Bookings ─────────────────────────────────────────────────────────────────
+
+export async function createBooking(data: InsertBooking) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [result] = await db.insert(bookings).values(data);
+  return result;
+}
+
+export async function listBookings() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(bookings).orderBy(desc(bookings.createdAt));
+}
+
+export async function updateBookingStatus(
+  id: number,
+  status: "pending" | "confirmed" | "completed" | "cancelled"
+) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db.update(bookings).set({ status }).where(eq(bookings.id, id));
+}
+
+// ─── Unsubscribes ─────────────────────────────────────────────────────────────
+
+/**
+ * Add an email to the unsubscribe list.
+ * Uses INSERT IGNORE semantics — safe to call multiple times for the same email.
+ */
+export async function addUnsubscribe(email: string, token: string) {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  await db
+    .insert(unsubscribes)
+    .values({ email: email.toLowerCase(), token })
+    .onDuplicateKeyUpdate({ set: { token } });
+}
+
+/** Returns true if the email is on the unsubscribe list. */
+export async function isUnsubscribed(email: string): Promise<boolean> {
+  const db = await getDb();
+  if (!db) return false;
+  const rows = await db
+    .select({ id: unsubscribes.id })
+    .from(unsubscribes)
+    .where(eq(unsubscribes.email, email.toLowerCase()))
+    .limit(1);
+  return rows.length > 0;
+}
+
+/** Resolve a token to an email address (for the public unsubscribe page). */
+export async function getUnsubscribeByToken(token: string) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(unsubscribes)
+    .where(eq(unsubscribes.token, token))
+    .limit(1);
+  return rows.length > 0 ? rows[0] : null;
+}
+
+/** List all unsubscribed emails (admin use). */
+export async function listUnsubscribes() {
+  const db = await getDb();
+  if (!db) return [];
+  return db.select().from(unsubscribes).orderBy(desc(unsubscribes.unsubscribedAt));
+}

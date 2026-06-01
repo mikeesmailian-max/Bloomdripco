@@ -19,3 +19,19 @@
 - [x] Update Admin.tsx MarketingHubPage review requests to use tRPC mutation
 - [x] Remove stale `apiKey` localStorage references from Admin.tsx
 - [x] Write vitest tests for all email functions (15 tests, all passing)
+
+## Booking Log & Unsubscribe System
+- [x] Update sender address to noreply@bloomdripco.com (domain verified)
+- [x] Add `bookings` table to DB schema (name, phone, email, service, date, notes, status, createdAt)
+- [x] Add `unsubscribes` table to DB schema (email, token, unsubscribedAt)
+- [x] Push DB migration
+- [x] Save booking to DB on every booking form submission
+- [x] tRPC procedures: listBookings, updateBookingStatus (admin)
+- [x] tRPC procedures: unsubscribeByToken, unsubscribeEmail, listUnsubscribes
+- [x] Admin panel: Booking Log tab — searchable, status filter, inline status dropdown, stats row
+- [x] Admin panel: Unsubscribes tab — searchable list of opted-out emails with date
+- [x] Add unsubscribe token to all campaign/marketing emails (origin-aware URL)
+- [x] Public /unsubscribe page — token auto-unsubscribe + manual email fallback
+- [x] Guard campaign sends: skip unsubscribed emails silently
+- [x] Remove stale Resend API key field from Settings page (replaced with Email Integration status card)
+- [x] Write vitest tests for booking and unsubscribe procedures (23 tests, all passing)

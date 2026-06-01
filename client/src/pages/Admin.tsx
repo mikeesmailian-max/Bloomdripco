@@ -143,6 +143,7 @@ export default function Admin() {
             { id: "campaigns", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>, label: "Campaigns" },
             { id: "marketing", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>, label: "Marketing Hub" },
             { id: "partnerships", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>, label: "Partnerships" },
+            { id: "unsubscribes", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/><line x1="5" y1="19" x2="19" y2="5"/></svg>, label: "Unsubscribes" },
             { id: "settings", icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>, label: "Settings" },
           ].map(item => (
             <div key={item.id} className={`nav-item${page === item.id ? " active" : ""}`} onClick={() => setPage(item.id)}>
@@ -167,7 +168,7 @@ export default function Admin() {
 
         {/* ── BOOKINGS ── */}
         {page === "bookings" && (
-          <BookingsPage bookings={bookings} setBookings={b => { setBookings(b); saveAll(clients, b, menu, campaigns, promos); }} menu={menu} showToast={showToast} statusBadge={statusBadge} />
+          <BookingsPage showToast={showToast} />
         )}
 
         {/* ── CLIENTS ── */}
@@ -198,6 +199,11 @@ export default function Admin() {
         {/* ── PARTNERSHIPS ── */}
         {page === "partnerships" && (
           <PartnershipsPage />
+        )}
+
+        {/* ── UNSUBSCRIBES ── */}
+        {page === "unsubscribes" && (
+          <UnsubscribesPage />
         )}
 
         {/* ── SETTINGS ── */}
@@ -350,77 +356,121 @@ function DashboardPage({ bookings, clients, statusBadge, promos }: { bookings: B
   );
 }
 
-// ── BOOKINGS PAGE ────────────────────────────────────────────────────────────
-function BookingsPage({ bookings, setBookings, menu, showToast, statusBadge }: { bookings: Booking[]; setBookings: (b: Booking[]) => void; menu: MenuItem[]; showToast: (m: string, e?: boolean) => void; statusBadge: (s: string) => string }) {
-  const [modal, setModal] = useState(false);
-  const [form, setForm] = useState({ name: "", email: "", service: menu[0]?.name || "", date: "", status: "Confirmed", notes: "" });
+// ── BOOKINGS PAGE (DB-backed) ─────────────────────────────────────────────────
+type DbBookingStatus = "pending" | "confirmed" | "completed" | "cancelled";
 
-  const addBooking = () => {
-    if (!form.name || !form.service || !form.date) { showToast("Please fill required fields", true); return; }
-    const item = menu.find(m => m.name === form.service);
-    const price = item ? item.price : 0;
-    const newBookings = [...bookings, { id: Date.now(), ...form, price }];
-    setBookings(newBookings);
-    setModal(false);
-    showToast("Booking added ✓");
-    setForm({ name: "", email: "", service: menu[0]?.name || "", date: "", status: "Confirmed", notes: "" });
+function BookingsPage({ showToast }: { showToast: (m: string, e?: boolean) => void }) {
+  const { data: dbBookings = [], isLoading, refetch } = trpc.email.listBookings.useQuery();
+  const updateStatus = trpc.email.updateBookingStatus.useMutation({
+    onSuccess: () => { refetch(); },
+    onError: () => showToast("Failed to update status", true),
+  });
+  const [search, setSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState<"all" | DbBookingStatus>("all");
+
+  const filtered = dbBookings.filter(b => {
+    const matchesSearch = (b.name + b.email + b.service).toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = filterStatus === "all" || b.status === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
+
+  const statusBadgeDb = (s: string) => {
+    if (s === "confirmed") return "badge-gold";
+    if (s === "completed") return "badge-green";
+    if (s === "cancelled") return "badge-red";
+    return "badge-gray"; // pending
   };
 
-  const deleteBooking = (id: number) => {
-    setBookings(bookings.filter(b => b.id !== id));
-    showToast("Booking deleted");
+  const handleStatusChange = (id: number, status: DbBookingStatus) => {
+    updateStatus.mutate({ id, status });
+    showToast(`Status updated to ${status}`);
   };
 
   return (
     <div>
-      <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, color: "var(--cream)", marginBottom: 6 }}>Bookings</h1>
-      <p style={{ fontSize: 13, color: "var(--text2-c)", marginBottom: 28 }}>All appointments</p>
-      <div className="admin-card">
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-          <span className="admin-card-title">All Bookings</span>
-          <button className="btn btn-gold btn-sm" onClick={() => setModal(true)}>+ New</button>
-        </div>
-        <table className="admin-table">
-          <thead><tr><th>Client</th><th>Service</th><th>Date & Time</th><th>Price</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody>
-            {bookings.map(b => (
-              <tr key={b.id}>
-                <td>{b.name}</td><td>{b.service}</td><td>{b.date}</td>
-                <td>${b.price}</td>
-                <td><span className={`badge ${statusBadge(b.status)}`}>{b.status}</span></td>
-                <td><button className="btn btn-red btn-sm" onClick={() => deleteBooking(b.id)}>Delete</button></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, color: "var(--cream)", marginBottom: 6 }}>Booking Log</h1>
+      <p style={{ fontSize: 13, color: "var(--text2-c)", marginBottom: 28 }}>All appointment requests submitted via the website — stored in the database.</p>
+
+      {/* Stats row */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(160px,1fr))", gap: 14, marginBottom: 24 }}>
+        {[
+          { label: "Total", val: dbBookings.length, badge: "" },
+          { label: "Pending", val: dbBookings.filter(b => b.status === "pending").length, badge: "badge-gray" },
+          { label: "Confirmed", val: dbBookings.filter(b => b.status === "confirmed").length, badge: "badge-gold" },
+          { label: "Completed", val: dbBookings.filter(b => b.status === "completed").length, badge: "badge-green" },
+          { label: "Cancelled", val: dbBookings.filter(b => b.status === "cancelled").length, badge: "badge-red" },
+        ].map(s => (
+          <div key={s.label} className="stat-card" style={{ padding: "16px 18px" }}>
+            <div className="stat-label">{s.label}</div>
+            <div className="stat-val" style={{ fontSize: 26 }}>{s.val}</div>
+          </div>
+        ))}
       </div>
-      {modal && (
-        <div className="modal-bg" onClick={e => { if (e.target === e.currentTarget) setModal(false); }}>
-          <div className="modal">
-            <div className="modal-title">New Booking</div>
-            <div className="form-grid">
-              <div className="form-group"><label className="form-label">Client Name</label><input className="admin-input" value={form.name} onChange={e => setForm({...form, name: e.target.value})} /></div>
-              <div className="form-group"><label className="form-label">Email</label><input type="email" className="admin-input" value={form.email} onChange={e => setForm({...form, email: e.target.value})} /></div>
-              <div className="form-group"><label className="form-label">Service</label>
-                <select className="admin-select" value={form.service} onChange={e => setForm({...form, service: e.target.value})}>
-                  {menu.map(m => <option key={m.id}>{m.name}</option>)}
-                </select>
-              </div>
-              <div className="form-group"><label className="form-label">Date & Time</label><input className="admin-input" value={form.date} onChange={e => setForm({...form, date: e.target.value})} placeholder="May 30, 2026 2:00 PM" /></div>
-              <div className="form-group"><label className="form-label">Status</label>
-                <select className="admin-select" value={form.status} onChange={e => setForm({...form, status: e.target.value})}>
-                  {["Confirmed","Pending","Completed","Cancelled"].map(s => <option key={s}>{s}</option>)}
-                </select>
-              </div>
-              <div className="form-group"><label className="form-label">Notes</label><input className="admin-input" value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} /></div>
-            </div>
-            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", marginTop: 24 }}>
-              <button className="btn btn-outline" onClick={() => setModal(false)}>Cancel</button>
-              <button className="btn btn-gold" onClick={addBooking}>Add Booking</button>
-            </div>
+
+      <div className="admin-card">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+          <span className="admin-card-title">All Bookings</span>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input
+              className="admin-input" style={{ width: 200 }}
+              placeholder="Search name, email, service…"
+              value={search} onChange={e => setSearch(e.target.value)}
+            />
+            <select className="admin-select" style={{ width: 140 }} value={filterStatus} onChange={e => setFilterStatus(e.target.value as typeof filterStatus)}>
+              <option value="all">All Statuses</option>
+              <option value="pending">Pending</option>
+              <option value="confirmed">Confirmed</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
           </div>
         </div>
-      )}
+
+        {isLoading ? (
+          <div style={{ textAlign: "center", color: "var(--text2-c)", padding: 32, fontSize: 13 }}>Loading bookings…</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ textAlign: "center", color: "var(--text2-c)", padding: 32, fontSize: 13 }}>
+            {dbBookings.length === 0 ? "No bookings yet — they'll appear here once clients submit the booking form." : "No bookings match your search."}
+          </div>
+        ) : (
+          <table className="admin-table">
+            <thead>
+              <tr>
+                <th>Client</th><th>Email</th><th>Phone</th><th>Service</th>
+                <th>Preferred Date</th><th>Notes</th><th>Status</th><th>Submitted</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(b => (
+                <tr key={b.id}>
+                  <td><strong>{b.name}</strong></td>
+                  <td style={{ fontSize: 12 }}>{b.email || "—"}</td>
+                  <td style={{ fontSize: 12 }}>{b.phone || "—"}</td>
+                  <td>{b.service}</td>
+                  <td style={{ fontSize: 12 }}>{b.preferredDate || "—"}</td>
+                  <td style={{ fontSize: 12, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{b.notes || "—"}</td>
+                  <td>
+                    <select
+                      className="admin-select"
+                      style={{ width: 120, padding: "5px 10px", fontSize: 12 }}
+                      value={b.status}
+                      onChange={e => handleStatusChange(b.id, e.target.value as DbBookingStatus)}
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="confirmed">Confirmed</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </td>
+                  <td style={{ fontSize: 11, color: "var(--text2-c)" }}>
+                    {new Date(b.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </div>
     </div>
   );
 }
@@ -749,6 +799,7 @@ function CampaignsPage({ clients, campaigns, setCampaigns, showToast }: { client
           to: r.email,
           subject: subject.replace("{name}", r.first),
           html: `<div style="font-family:sans-serif;max-width:600px;margin:auto;padding:32px;background:#fff;color:#333"><h2 style="color:#c9a84c;font-family:serif">${fromName}</h2><div style="margin:20px 0;line-height:1.7">${htmlBody}</div><hr style="border:none;border-top:1px solid #eee;margin:24px 0"/><p style="font-size:12px;color:#999">Bloom Drip Co. | You're receiving this because you're a valued client.</p></div>`,
+          origin: window.location.origin,
         });
         sent++;
       } catch { failed++; }
@@ -914,18 +965,18 @@ function SettingsPage({ showToast }: { showToast: (m: string, e?: boolean) => vo
       </div>
       <div className="admin-card" style={{ maxWidth: 540, marginTop: 0 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
-          <span className="admin-card-title">Resend API Key</span>
+          <span className="admin-card-title">Email Integration</span>
+          <span className="badge badge-green" style={{ fontSize: 11 }}>✓ Active</span>
         </div>
-        <p style={{ fontSize: 13, color: "var(--text2-c)", marginBottom: 16, lineHeight: 1.6 }}>
-          Enter your Resend API key to enable campaign emails. Get your key at <a href="https://resend.com" target="_blank" rel="noreferrer" style={{ color: "var(--gold)" }}>resend.com</a>. Your key is stored locally in this browser only.
+        <p style={{ fontSize: 13, color: "var(--text2-c)", lineHeight: 1.7 }}>
+          Email sending is handled securely on the server via <strong style={{ color: "var(--cream)" }}>Resend</strong>.
+          All outgoing emails use <strong style={{ color: "var(--cream)" }}>noreply@bloomdripco.com</strong> as the sender
+          and route replies to <strong style={{ color: "var(--cream)" }}>info@bloomdripco.com</strong>.
+          Campaign emails include a one-click unsubscribe link in the footer.
         </p>
-        <div className="form-group" style={{ marginBottom: 16 }}>
-          <label className="form-label">API Key</label>
-          <input id="resendKey" type="password" className="admin-input" value={resendKey} onChange={e => setResendKey(e.target.value)} placeholder="re_xxxxxxxxxxxxxxxxxxxx" />
-        </div>
-        <div style={{ display: "flex", gap: 10 }}>
-          <button className="btn btn-gold" onClick={saveSettings}>Save Settings</button>
-          <button className="btn btn-outline" onClick={testResend}>Test Connection</button>
+        <div style={{ marginTop: 14, padding: "10px 14px", background: "rgba(201,168,76,.06)", border: "1px solid rgba(201,168,76,.2)", borderRadius: 8, fontSize: 12, color: "var(--text2-c)" }}>
+          To manage your Resend account, domain, or API key, visit{" "}
+          <a href="https://resend.com/domains" target="_blank" rel="noreferrer" style={{ color: "var(--gold)" }}>resend.com/domains</a>.
         </div>
       </div>
       <div className="admin-card" style={{ maxWidth: 540, marginTop: 0 }}>
@@ -941,6 +992,63 @@ function SettingsPage({ showToast }: { showToast: (m: string, e?: boolean) => vo
           <input type="password" className="admin-input" value={newPwd2} onChange={e => setNewPwd2(e.target.value)} />
         </div>
         <button className="btn btn-gold" onClick={changePwd}>Update Password</button>
+      </div>
+    </div>
+  );
+}
+
+
+// ── UNSUBSCRIBES PAGE ────────────────────────────────────────────────────────────
+function UnsubscribesPage() {
+  const { data: unsubs = [], isLoading } = trpc.email.listUnsubscribes.useQuery();
+  const [search, setSearch] = useState("");
+
+  const filtered = unsubs.filter(u =>
+    u.email.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div>
+      <h1 style={{ fontFamily: "'Playfair Display', serif", fontSize: 28, color: "var(--cream)", marginBottom: 6 }}>Unsubscribes</h1>
+      <p style={{ fontSize: 13, color: "var(--text2-c)", marginBottom: 28 }}>
+        Clients who clicked the unsubscribe link in a campaign email. They are automatically skipped on future sends.
+      </p>
+
+      <div className="admin-card">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16, flexWrap: "wrap", gap: 10 }}>
+          <span className="admin-card-title">{unsubs.length} Unsubscribed Email{unsubs.length !== 1 ? "s" : ""}</span>
+          <input
+            className="admin-input" style={{ width: 220 }}
+            placeholder="Search email…"
+            value={search} onChange={e => setSearch(e.target.value)}
+          />
+        </div>
+
+        {isLoading ? (
+          <div style={{ textAlign: "center", color: "var(--text2-c)", padding: 32, fontSize: 13 }}>Loading…</div>
+        ) : filtered.length === 0 ? (
+          <div style={{ textAlign: "center", color: "var(--text2-c)", padding: 32, fontSize: 13 }}>
+            {unsubs.length === 0
+              ? "No unsubscribes yet. Campaign emails include an unsubscribe link automatically."
+              : "No results match your search."}
+          </div>
+        ) : (
+          <table className="admin-table">
+            <thead>
+              <tr><th>Email</th><th>Unsubscribed On</th></tr>
+            </thead>
+            <tbody>
+              {filtered.map(u => (
+                <tr key={u.id}>
+                  <td>{u.email}</td>
+                  <td style={{ fontSize: 12, color: "var(--text2-c)" }}>
+                    {new Date(u.unsubscribedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
     </div>
   );
@@ -1259,6 +1367,7 @@ function MarketingHubPage({ clients, showToast }: { clients: Client[]; showToast
           to: c.email,
           subject: selectedCampaign.subject,
           html: buildCampaignHtml(selectedCampaign, c.first),
+          origin: window.location.origin,
         });
         sent++;
       } catch (_) {}
@@ -1275,6 +1384,7 @@ function MarketingHubPage({ clients, showToast }: { clients: Client[]; showToast
         to: reviewEmail,
         subject: "Quick favor — would you leave us a Google review? ⭐",
         html: buildReviewHtml(reviewName),
+        origin: window.location.origin,
       });
       setReviewSent(true);
       setReviewEmail(""); setReviewName("");

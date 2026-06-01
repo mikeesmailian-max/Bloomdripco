@@ -14,11 +14,9 @@ function getResend(): Resend {
 }
 
 // ─── Sender / reply address ───────────────────────────────────────────────────
-// Resend's free tier only allows sending from onboarding@resend.dev.
-// Once you verify a custom domain in Resend, swap FROM_* to e.g.
-// "Bloom Drip Co. <noreply@bloomdripco.com>"
-const FROM_BOOKING  = "Bloom Drip Co. Bookings <onboarding@resend.dev>";
-const FROM_LEAD     = "Bloom Drip Co. <onboarding@resend.dev>";
+// Domain bloomdripco.com is verified in Resend — sending from noreply@bloomdripco.com.
+const FROM_BOOKING  = "Bloom Drip Co. Bookings <noreply@bloomdripco.com>";
+const FROM_LEAD     = "Bloom Drip Co. <noreply@bloomdripco.com>";
 const ADMIN_EMAIL   = "info@bloomdripco.com";
 
 // All outgoing emails set reply_to so client replies always land in the inbox.
@@ -311,23 +309,45 @@ export async function validateResendKey(): Promise<boolean> {
 
 /**
  * Generic email sender for admin-initiated emails (campaigns, review requests, etc.)
- * Always sets reply_to to info@bloomdripco.com so client replies are never lost.
+ * Always sets replyTo to info@bloomdripco.com so client replies are never lost.
+ * If unsubscribeUrl is provided it is appended as a footer to the HTML.
  */
 export interface GenericEmailData {
   to: string | string[];
   subject: string;
   html: string;
   from?: string;
+  unsubscribeUrl?: string;
+}
+
+function appendUnsubscribeFooter(html: string, unsubscribeUrl: string): string {
+  const footer = `
+<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:24px;">
+  <tr><td align="center" style="padding:16px;border-top:1px solid rgba(201,168,76,0.12);">
+    <p style="font-size:11px;color:rgba(200,216,232,0.3);margin:0;font-family:Arial,sans-serif;">
+      You're receiving this because you're a Bloom Drip Co. client or subscriber.
+      <a href="${unsubscribeUrl}" style="color:rgba(201,168,76,0.5);text-decoration:underline;">Unsubscribe</a>
+    </p>
+  </td></tr>
+</table>`;
+  // Insert before closing </body> if present, otherwise append
+  if (html.includes("</body>")) {
+    return html.replace("</body>", footer + "</body>");
+  }
+  return html + footer;
 }
 
 export async function sendGenericEmail(data: GenericEmailData): Promise<void> {
   const resend = getResend();
   const toAddresses = Array.isArray(data.to) ? data.to : [data.to];
+  const finalHtml = data.unsubscribeUrl
+    ? appendUnsubscribeFooter(data.html, data.unsubscribeUrl)
+    : data.html;
   await resend.emails.send({
     from: data.from ?? FROM_BOOKING,
     to: toAddresses,
     replyTo: REPLY_TO,
     subject: data.subject,
-    html: data.html,
+    html: finalHtml,
   });
 }
